@@ -1,0 +1,50 @@
+import pandas as pd
+from fuzzywuzzy import process
+
+# Load Data
+firm_list = pd.read_csv("firm_list.csv")  # Contains Synthesys Short & Full Name
+all_firms = pd.read_csv("all_firms.csv")  # Contains full firm data
+
+# Standardizing names for better matching
+firm_list["Synthesys Short Name"] = firm_list["Synthesys Short Name"].str.lower().str.strip()
+firm_list["Synthesys Full Name"] = firm_list["Synthesys Full Name"].str.lower().str.strip()
+all_firms["Firm Name"] = all_firms["Firm Name"].str.lower().str.strip()
+
+# Function to get the best match from All Firms Data and retrieve full row
+def get_best_match(row):
+    full_name = row["Synthesys Full Name"]
+    short_name = row["Synthesys Short Name"]
+
+    best_match, highest_score = None, 0
+    
+    # Try matching with full name first
+    if pd.notna(full_name):
+        match, score = process.extractOne(full_name, all_firms["Firm Name"], score_cutoff=90) or (None, 0)
+        if score > highest_score:
+            best_match, highest_score = match, score
+
+    # If no strong match, fallback to short name
+    if pd.notna(short_name) and highest_score < 90:
+        match, score = process.extractOne(short_name, all_firms["Firm Name"], score_cutoff=90) or (None, 0)
+        if score > highest_score:
+            best_match, highest_score = match, score
+
+    # If match found, get the full row from all_firms
+    if best_match:
+        matched_row = all_firms[all_firms["Firm Name"] == best_match].iloc[0].to_dict()
+        matched_row["Matched Firm Name"] = best_match  # Explicitly store matched name
+        return pd.Series(matched_row)
+    
+    # Return empty row if no match
+    return pd.Series({col: None for col in all_firms.columns})
+
+# Apply matching function and merge full firm details
+matched_data = firm_list.apply(get_best_match, axis=1)
+
+# Combine firm_list with matched all_firms data
+final_output = pd.concat([firm_list, matched_data], axis=1)
+
+# Save output
+final_output.to_csv("matched_firms_with_details.csv", index=False)
+
+print("Matching complete! Check matched_firms_with_details.csv for results.")
