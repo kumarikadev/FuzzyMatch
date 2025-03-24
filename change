@@ -1,0 +1,33 @@
+import pandas as pd
+from fuzzywuzzy import process
+
+# Load Data (Replace with actual file paths)
+firm_list = pd.read_csv("firm_list.csv")  # Contains Synthesys Short & Full Name
+all_firms = pd.read_csv("all_firms.csv")  # Contains all firms with details
+
+# Standardizing names for better matching
+firm_list["Synthesys Short Name"] = firm_list["Synthesys Short Name"].str.lower().str.strip()
+firm_list["Synthesys Full Name"] = firm_list["Synthesys Full Name"].str.lower().str.strip()
+all_firms["Firm Name"] = all_firms["Firm Name"].str.lower().str.strip()
+
+# Function to get the best match from All Firms Data
+def get_best_match(row):
+    full_name = row["Synthesys Full Name"]
+    short_name = row["Synthesys Short Name"]
+    
+    # Try matching with full name first
+    best_match = process.extractOne(full_name, all_firms["Firm Name"], score_cutoff=90)
+    
+    # If no good match, fallback to short name
+    if not best_match:
+        best_match = process.extractOne(short_name, all_firms["Firm Name"], score_cutoff=90)
+    
+    return best_match[0] if best_match else None
+
+# Apply matching function to each firm
+firm_list["Matched Firm"] = firm_list.apply(get_best_match, axis=1)
+
+# Save output
+firm_list.to_csv("matched_firms.csv", index=False)
+
+print("Matching complete! Check matched_firms.csv for results.")
